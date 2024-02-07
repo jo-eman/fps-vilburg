@@ -100,6 +100,24 @@ impl Player {
             })
             .collect()
     }
+    fn has_line_of_sight(&self, target_pos: mq::Vec2, map: &mut [u8]) -> bool {
+        let self_pos = mq::Vec2::new(self.pos.0, self.pos.1); // Convert self.pos tuple to Vec2
+        let direction = (target_pos - self_pos).normalize(); // Correctly subtract Vec2 instances
+        let ray = Ray::new((self_pos.x, self_pos.y), (direction.x, direction.y)); // Convert Vec2 back to tuples if needed by Ray::new
+    
+        // Assuming `cast_ray` expects (map: &mut [u8], shots_fired: bool)
+        let (_, hit_option) = ray.cast_ray(map, false); // Correctly call cast_ray with required arguments
+    
+        match hit_option {
+            Some(hit) => {
+                let hit_pos = mq::Vec2::new(hit.pos.0, hit.pos.1); // Convert hit.pos tuple to Vec2 for comparison
+                let hit_distance = (hit_pos - self_pos).length();
+                let target_distance = (target_pos - self_pos).length();
+                hit_distance >= target_distance
+            },
+            None => false, // No hit means no direct line of sight
+        }
+    }
 }
 #[derive(Clone, Copy, Serialize, Deserialize)]
 struct RayHit {
@@ -572,6 +590,40 @@ async fn main() {
                 ..Default::default()
             },
         );
+        // draw other players as circles based on their position 
+
+        for other_player in &game_state[0].players {
+            if other_player.id != player_id { // Ensure you don't draw the current player
+
+               // let pos = other_player.pos; // Assuming pos is a tuple (f32, f32) representing position
+
+        
+                //if player.has_line_of_sight(other_player.pos.into(), &mut map) {
+                    let player_pos = mq::Vec2::new(player.pos.0, player.pos.1);
+                    let other_player_pos = mq::Vec2::new(other_player.pos.0, other_player.pos.1);
+                    let direction_to_other = other_player_pos - player_pos;
+                    let distance_to_other = direction_to_other.length();
+                    let direction_to_other_norm = direction_to_other.normalize();
+                    let player_direction = mq::Vec2::new(player.direction.0, player.direction.1);
+                    let dot_product = player_direction.dot(direction_to_other_norm);
+                    let angle_to_other = dot_product.acos(); // Result in radians
+        
+                    // Check if within FOV and distance
+                    if angle_to_other < FOV / 2.0 && distance_to_other < VIEW_DISTANCE {
+                        let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
+                        let size = (WINDOW_HEIGHT as f32 * projection_dist) / distance_to_other;
+                        let screen_x = scaling_info.offset.x
+                            + scaling_info.width * (3.0 / 4.0)
+                            + (angle_to_other / FOV) * scaling_info.width / 2.0;
+                        let screen_y = scaling_info.offset.y + scaling_info.height / 2.0;
+        
+                        mq::draw_circle(screen_x, screen_y, size / 2.0, mq::ORANGE);
+                    }
+                //}
+        
+            }
+        }
+
 
         // crosshair
         mq::draw_line(
